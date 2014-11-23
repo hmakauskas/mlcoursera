@@ -1,0 +1,94 @@
+---
+title: "Final Project - Practical Machine Learning in Coursera"
+output: html_document
+---
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+### Objective
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did.
+
+### Loading data
+
+```{r}
+# Load libraries
+library(caret)
+library(rpart)
+library(rpart.plot)
+
+# Load the training set
+training <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+
+# Load the testing set
+testing <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+
+```
+
+### Cleaning data
+
+```{r}
+
+#Removing unnecessary variables
+training <- training[,-c(1:7)]
+testing <- testing[,-c(1:7)]
+
+#Also the variables with variance near zero are removed.
+trainingNzv <- nearZeroVar(training)
+training <- training[, -trainingNzv]
+testing <- testing[, -trainingNzv]
+
+# The variables that have NA's are removed to improve the accuracy of the model
+NAs <- apply(training, 2, function(x) {
+    sum(is.na(x))
+})
+training <- training[, which(NAs == 0)]
+testing <- testing[, which(NAs == 0)]
+
+```
+### partitioning dataset training and model creation
+
+```{r}
+trainIndex <- createDataPartition(y = training$classe, p=0.7,list=FALSE)
+
+trainSet <- training[trainIndex,]
+testSet <- training[-trainIndex,]
+
+# Explore training set
+plot(trainSet$classe, col="gray", main="Bar Plot of levels of the variable classe within the subTraining data set", xlab="classe levels", ylab="Frequency")
+
+#look the decision tree
+modRpart <- rpart(trainSet$classe ~ ., data=trainSet, method="class")
+rpart.plot(modRpart)
+
+#It has been fit three models with the methods rpart, rpart2 and rf and then verified the predictive power.
+
+rpart <- train(trainSet$classe ~ ., data = trainSet, method = "rpart")
+
+rpart2 <- train(trainSet$classe ~ ., data = trainSet, method = "rpart2")
+
+ctrl <- trainControl(method = "cv", number = 4)
+rf <- train(trainSet$classe ~.,data = trainSet, method="rf", trControl = ctrl)
+
+#comparing results
+data.frame(rpart$result[2], rpart2$result[2], rf$result[2])
+
+```
+
+### Cross-validation and Expected error
+
+```{r}
+ 
+# Model selected was RF because we got the highest accuracy around 99%
+
+pred_rf <- predict(rf, testSet)
+
+# Summarize randomForest results. 
+confusionMatrix(pred_rf,testSet$classe)
+
+#Sample Error
+sum(pred_rf == testSet$classe)/nrow(testSet)*100
+
+```
